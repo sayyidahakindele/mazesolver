@@ -22,6 +22,9 @@ MazeWidget::MazeWidget(int size, QWidget* parent)
     setMinimumSize(200, 200);
     setFocusPolicy(Qt::StrongFocus); // so arrow keys reach this widget
 
+    const int last = m_maze.size() - 1;
+    m_optimalMoves = static_cast<int>(MazeSolver::shortestPath(m_maze, {0, 0}, {last, last}).size()) - 1;
+
     m_solveTimer.setInterval(60); // ms per step while auto-solving
     connect(&m_solveTimer, &QTimer::timeout, this, [this] { stepAlongSolution(); });
 
@@ -40,6 +43,27 @@ qint64 MazeWidget::elapsedMs() const
         return m_finishMs;
     }
     return m_clockStarted ? m_clock.elapsed() : 0;
+}
+
+int MazeWidget::optimalMoves() const
+{
+    return m_optimalMoves;
+}
+
+int MazeWidget::scorePercent() const
+{
+    if (m_moves == 0) {
+        return 0;
+    }
+    return static_cast<int>(std::lround(100.0 * m_optimalMoves / m_moves));
+}
+
+int MazeWidget::stars() const
+{
+    const int score = scorePercent();
+    if (score >= 100) return 3;
+    if (score >= 75)  return 2;
+    return 1;
 }
 
 QString MazeWidget::formatTime(qint64 ms)
@@ -286,17 +310,32 @@ void MazeWidget::paintEvent(QPaintEvent*)
 
     // Win message.
     if (hasWon()) {
+        QString message = QString("You escaped!\n%1 moves in %2\nShortest possible: %3\n")
+                              .arg(m_moves)
+                              .arg(formatTime(m_finishMs))
+                              .arg(m_optimalMoves);
+        if (m_usedSolve) {
+            message += "No score (used Solve)";
+        } else {
+            const int s = stars();
+            message += QString("Score: %1%  %2%3")
+                           .arg(scorePercent())
+                           .arg(QString(s, QChar(0x2605)))      // filled stars
+                           .arg(QString(3 - s, QChar(0x2606))); // empty stars
+        }
+
         QFont font = painter.font();
-        font.setPointSize(24);
+        font.setPointSize(20);
         font.setBold(true);
         painter.setFont(font);
+
+        // Light panel behind the text so it stays readable over the maze.
+        const QRectF textRect = painter.boundingRect(rect(), Qt::AlignCenter, message);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(255, 255, 255, 220));
+        painter.drawRoundedRect(textRect.adjusted(-20, -14, 20, 14), 12, 12);
+
         painter.setPen(QColor(30, 130, 30));
-        QString message = QString("You escaped!\n%1 moves in %2")
-                              .arg(m_moves)
-                              .arg(formatTime(m_finishMs));
-        if (m_usedSolve) {
-            message += "\n(with Solve)";
-        }
         painter.drawText(rect(), Qt::AlignCenter, message);
     }
 }

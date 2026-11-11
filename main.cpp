@@ -34,8 +34,12 @@ int main(int argc, char *argv[])
     auto* mazeWidget = new MazeWidget(size);
 
     auto* statsLabel = new QLabel;
-    auto showStats = [statsLabel](int moves, qint64 ms) {
-        statsLabel->setText(QString("Time: %1     Moves: %2").arg(MazeWidget::formatTime(ms)).arg(moves));
+    const int shortest = mazeWidget->optimalMoves();
+    auto showStats = [statsLabel, shortest](int moves, qint64 ms) {
+        statsLabel->setText(QString("Time: %1     Moves: %2     Shortest possible: %3")
+                                .arg(MazeWidget::formatTime(ms))
+                                .arg(moves)
+                                .arg(shortest));
     };
     showStats(0, 0);
 

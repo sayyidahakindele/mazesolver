@@ -27,6 +27,15 @@ public:
     int moves() const;
     qint64 elapsedMs() const;
 
+    // Fewest moves needed to get from the entrance to the exit.
+    int optimalMoves() const;
+
+    // Score out of 100: shortest possible moves divided by moves taken.
+    int scorePercent() const;
+
+    // 3 stars for a perfect run, 2 for 75% or more, otherwise 1.
+    int stars() const;
+
     // Formats milliseconds as m:ss.t, e.g. 1:05.3
     static QString formatTime(qint64 ms);
 
@@ -77,6 +86,7 @@ private:
 
     // Timer and move counter. The clock starts on the first move and stops at the exit.
     int m_moves = 0;
+    int m_optimalMoves = 0;
     bool m_clockStarted = false;
     QElapsedTimer m_clock;
     qint64 m_finishMs = 0;
