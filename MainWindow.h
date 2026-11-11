@@ -34,6 +34,7 @@ private:
     void startGame();   // makes a new maze of the chosen size and shows the game screen
     void requestHome(); // asks before leaving a game in progress
     void goHome();      // throws away the current game and shows the home screen
+    void discardMaze(); // disconnects and deletes the current maze, if any
     void showStats(int moves, qint64 elapsedMs);
 
     void applyTheme(bool dark);

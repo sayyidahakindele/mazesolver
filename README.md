@@ -2,6 +2,12 @@
 
 A C++ desktop maze game built with Qt 6 Widgets. Pick a maze size, find your way from the top-left entrance to the green exit, and get scored on how close you came to the shortest route. Stuck? Press Solve and it walks you there along the shortest path.
 
+<p align="center">
+  <img src="screenshots/game.png" alt="A game in progress: the red player and its blue route line partway through a 15 by 15 maze" width="32%">
+  <img src="screenshots/win-dark.png" alt="Dark mode: the player at the exit with the score panel showing 94% and four out of five stars" width="32%">
+  <img src="screenshots/home-dark.png" alt="Dark mode home screen with the maze size picker, Start button and a Recent games table" width="32%">
+</p>
+
 ## Features
 
 ### Home screen
@@ -41,6 +47,30 @@ $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"; cmake --build build; .\build\MazeS
 ```
 
 On a fresh copy of the project (no `build` folder yet), follow [Build and run](#build-and-run) below first.
+
+## Standalone version (no install needed)
+
+`package.sh` builds a copy of the game that runs on any 64-bit Windows PC without MSYS2 or Qt installed. Run it from the project folder in Git Bash or the MSYS2 UCRT64 terminal:
+
+```bash
+./package.sh
+```
+
+It creates:
+
+| Output | What it is |
+|---|---|
+| `dist/MazeSolver/MazeSolver.exe` | Double-click to play. Keep it inside its folder: the DLLs next to it are what it needs to run. |
+| `dist/MazeSolver-windows-x64.zip` | The same folder zipped (about 31 MB), for sharing. Unzip and run `MazeSolver.exe`. |
+
+`dist/` and `build-release/` are in `.gitignore`, so the executable is never committed. To share it on GitHub, upload the zip on the repo's **Releases** page.
+
+What the script does:
+
+1. Builds an optimized Release version into `build-release/`.
+2. Copies the `.exe` and runs `windeployqt6`, which adds the Qt DLLs and plugins (window system, styles, image formats). Networking parts the game doesn't use are skipped.
+3. Uses `ldd` to find every other MSYS2 DLL those files need (compiler runtime, ICU, fonts, images) and copies them in, repeating until nothing new is found.
+4. Zips the folder.
 
 ## Requirements (Windows)
 
@@ -98,7 +128,9 @@ The app opens on the home screen, where you choose the maze size. Once a game st
 | [MazeSolver.h](MazeSolver.h) / [.cpp](MazeSolver.cpp) | Finds the shortest path between two cells. |
 | [Player.h](Player.h) / [.cpp](Player.cpp) | Tracks the player's position and checks whether a move is allowed. |
 | [MazeWidget.h](MazeWidget.h) / [.cpp](MazeWidget.cpp) | The game itself: draws the maze, handles mouse/keyboard input, keeps the route, animates Solve, and tracks time, moves and score. |
-| [CMakeLists.txt](CMakeLists.txt) | Build setup: finds Qt 6 and lists the source files. |
+| [CMakeLists.txt](CMakeLists.txt) | Build setup: finds Qt 6, lists the source files, and marks the app as a Windows GUI program (no console window). |
+| [package.sh](package.sh) | Builds the standalone version in `dist/` (see [Standalone version](#standalone-version-no-install-needed)). |
+| [screenshots/](screenshots/) | Images used in this README. |
 
 ### How the pieces fit together
 
@@ -118,7 +150,7 @@ main.cpp
 - **Home page:** a `QSpinBox` for the size (5 to 100), a Start button, a Dark mode checkbox, and a Recent games table.
 - **Game page:** Solve, Restart and Home buttons, the time/moves label, and the maze.
 
-`startGame()` creates a new `MazeWidget` of the chosen size, so every game gets a new maze, timer and score. `goHome()` deletes it, which also stops its timers. The Home button calls `requestHome()`, which asks "End this game?" if `MazeWidget::inProgress()` is true. When the widget emits `won()`, `recordWin()` adds the game to the front of the recent list.
+`startGame()` creates a new `MazeWidget` of the chosen size, so every game gets a new maze, timer and score. `goHome()` calls `discardMaze()`, which disconnects the old widget's signals (so its clock can't update the next game's stats) and deletes it. The Home button calls `requestHome()`, which asks "End this game?" if `MazeWidget::inProgress()` is true. When the widget emits `won()`, `recordWin()` adds the game to the front of the recent list.
 
 **Dark mode:** `main.cpp` sets Qt's Fusion style, and `applyTheme()` swaps the app-wide `QPalette` between a dark palette and the standard light one. It also calls `MazeWidget::setDarkMode()`, which picks the maze's colours (background, walls, exit, route, player, win panel).
 
@@ -163,7 +195,7 @@ BFS reaches every cell by the fewest possible steps, so the path is always the s
 - **Score:** when the widget is created it runs `MazeSolver` from the entrance to the exit once and stores the length as `m_optimalMoves`. `scorePercent()` is `m_optimalMoves / m_moves × 100`, and `stars()` turns that into 1–5 stars (`MazeWidget::kMaxStars`). The win message shows moves, time, shortest possible and the score, or "No score (used Solve)".
 - **Restart:** `restart()` stops the Solve timer, moves the player to (0, 0), resets `m_route` to just the start cell, and clears the move count and "used Solve" flag. It doesn't touch the clock. The maze itself is `const`, so it stays the same.
 - **Input lock:** clicks, drags and keys are ignored while Solve is animating and after the player reaches the exit.
-- **Drawing (`paintEvent`):** scales the grid to fit the window, then draws the exit cell, the route line, the walls and the player, using light or dark colours depending on `m_darkMode`. At the exit it adds a panel with "You escaped!", moves, time, shortest possible and the score.
+- **Drawing (`paintEvent`):** scales the grid to fit the window, then draws the exit cell, the route line, the walls and the player, using light or dark colours depending on `m_darkMode`. At the exit, `drawWinPanel()` dims the maze and draws a solid green results card with a shadow: "You escaped!", the stars (filled ones in gold), the score, and the moves, shortest possible and time. If Solve was used, the stars and score are replaced by "No score (used Solve)".
 
 ## Troubleshooting
 
@@ -171,4 +203,5 @@ BFS reaches every cell by the fewest possible steps, so the path is always the s
 - **The term `\build\MazeSolver.exe` is not recognized:** the path needs a leading dot: `.\build\MazeSolver.exe`.
 - **`cannot open output file MazeSolver.exe: Permission denied` when building:** the app is still running. Close the maze window and build again.
 - **CMake finds the wrong Qt (for example a Qt 5 install in `C:\Qt`):** delete the `build` folder and configure again with `-DCMAKE_PREFIX_PATH=C:/msys64/ucrt64`.
+- **The standalone `MazeSolver.exe` says a DLL is missing:** it was moved out of its folder. Keep the whole `dist/MazeSolver` folder together, or run `./package.sh` again.
 - **`cmake` or `ninja` not found:** check that the PATH line ran, or install the packages listed under Requirements.

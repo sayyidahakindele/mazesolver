@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QElapsedTimer>
+#include <QPainter>
 #include <QString>
 #include <QTimer>
 #include <QWidget>
@@ -81,6 +82,9 @@ private:
     Geometry geometry() const;
 
     bool hasWon() const;
+
+    // Dims the maze and draws the results card (title, stars, score, moves, time).
+    void drawWinPanel(QPainter& painter);
     bool canAcceptInput() const;
 
     // Moves the player to an adjacent open cell, extending the route, or

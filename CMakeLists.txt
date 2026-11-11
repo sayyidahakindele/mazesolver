@@ -24,3 +24,6 @@ qt_add_executable(MazeSolver
 )
 
 target_link_libraries(MazeSolver PRIVATE Qt6::Widgets)
+
+# Windows GUI app: no console window pops up when you double-click the .exe.
+set_target_properties(MazeSolver PROPERTIES WIN32_EXECUTABLE TRUE)

@@ -156,6 +156,8 @@ QWidget* MainWindow::buildHomePage()
     m_recentTable->setFocusPolicy(Qt::NoFocus);
     m_recentTable->setAlternatingRowColors(true);
     m_recentTable->setMaximumWidth(460);
+    m_recentTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_recentTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     m_noRecentLabel = new QLabel("No completed games yet.");
     m_noRecentLabel->setAlignment(Qt::AlignCenter);
@@ -218,10 +220,7 @@ void MainWindow::startGame()
 {
     const int size = m_sizeBox->value();
 
-    if (m_maze) {
-        m_gameLayout->removeWidget(m_maze);
-        m_maze->deleteLater();
-    }
+    discardMaze();
     m_maze = new MazeWidget(size);
     m_maze->setDarkMode(m_darkMode);
     m_gameLayout->addWidget(m_maze, 1);
@@ -249,13 +248,22 @@ void MainWindow::requestHome()
     goHome();
 }
 
+void MainWindow::discardMaze()
+{
+    if (!m_maze) {
+        return;
+    }
+    // Cut its signals first: deleteLater() runs a moment later, and until then
+    // the old game's clock could still overwrite the stats of the next game.
+    m_maze->disconnect(this);
+    m_gameLayout->removeWidget(m_maze);
+    m_maze->deleteLater(); // also stops its timers
+    m_maze = nullptr;
+}
+
 void MainWindow::goHome()
 {
-    if (m_maze) {
-        m_gameLayout->removeWidget(m_maze);
-        m_maze->deleteLater(); // also stops its timers
-        m_maze = nullptr;
-    }
+    discardMaze();
     setWindowTitle("Maze Solver");
     m_stack->setCurrentWidget(m_homePage);
     m_sizeBox->setFocus();
@@ -341,6 +349,13 @@ void MainWindow::refreshRecentTable()
             m_recentTable->setItem(row, col, item);
         }
     }
+
+    // Make the table exactly as tall as its rows, so there's no empty block under them.
+    int height = m_recentTable->horizontalHeader()->sizeHint().height() + 2 * m_recentTable->frameWidth();
+    for (int row = 0; row < m_recentTable->rowCount(); ++row) {
+        height += m_recentTable->rowHeight(row);
+    }
+    m_recentTable->setFixedHeight(height);
 
     const bool empty = m_recentGames.empty();
     m_recentTable->setVisible(!empty);
