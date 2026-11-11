@@ -1,6 +1,6 @@
 # MazeSolver
 
-A C++ desktop app built with Qt 6 Widgets. It generates a random square maze that you walk through from the top-left entrance to the green exit at the bottom-right, or that it solves for you along the shortest path.
+A C++ desktop app built with Qt 6 Widgets. It generates a random square maze that you walk through from the entrance to exit, or solves the maze for you along the shortest path.
 
 ## Controls
 
@@ -8,6 +8,7 @@ A C++ desktop app built with Qt 6 Widgets. It generates a random square maze tha
 - **Drag:** hold the mouse button and drag; the player follows the cursor through open passages and stops at walls.
 - **Undo a step:** click (or drag back to) the cell you just came from; the last part of the line disappears.
 - **Solve:** walks the player along the shortest path from where it stands to the exit.
+- **Time and moves:** shown next to the Solve button. The clock starts on your first move and stops at the exit; every cell moved (including steps back) counts as a move.
 
 ## Quick start (PowerShell / VS Code terminal)
 
@@ -121,6 +122,7 @@ BFS reaches every cell by the fewest possible steps, so the path is always the s
 - **Clicks:** `cellAt()` converts the mouse position to a grid cell, and the player moves there if it's an open neighbour.
 - **Dragging:** while the mouse button is held, `followCursor()` checks points along the cursor's path every quarter-cell, so fast drags don't skip cells. If the cursor cuts across a corner, `stepToward()` goes round it through whichever side is open. If the cursor is past a wall, the player waits.
 - **Solve:** runs `MazeSolver` from the player's current position to the exit, then a `QTimer` moves the player one cell every 60 ms using the same `moveTo()`. If the player was in a dead end, it backs out and the route shrinks; at the exit, the route is exactly the shortest path.
+- **Timer and moves:** every successful `moveTo()` adds one to `m_moves`. The first move starts a `QElapsedTimer`, and reaching the exit records the finish time. The widget emits a `statsChanged` signal after each move and every 100 ms, and [main.cpp](main.cpp) shows it in the label next to Solve. Solve's steps count too, and the win message notes "(with Solve)".
 - **Input lock:** clicks, drags and keys are ignored while Solve is animating and after the player reaches the exit.
 - **Drawing (`paintEvent`):** scales the grid to fit the window, then draws the green exit cell, the blue route line, the walls, the red player, and "You escaped!" when the player reaches the exit.
 

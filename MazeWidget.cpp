@@ -24,6 +24,33 @@ MazeWidget::MazeWidget(int size, QWidget* parent)
 
     m_solveTimer.setInterval(60); // ms per step while auto-solving
     connect(&m_solveTimer, &QTimer::timeout, this, [this] { stepAlongSolution(); });
+
+    m_clockTick.setInterval(100);
+    connect(&m_clockTick, &QTimer::timeout, this, [this] { emit statsChanged(m_moves, elapsedMs()); });
+}
+
+int MazeWidget::moves() const
+{
+    return m_moves;
+}
+
+qint64 MazeWidget::elapsedMs() const
+{
+    if (hasWon()) {
+        return m_finishMs;
+    }
+    return m_clockStarted ? m_clock.elapsed() : 0;
+}
+
+QString MazeWidget::formatTime(qint64 ms)
+{
+    const qint64 tenths = ms / 100;
+    const qint64 minutes = tenths / 600;
+    const qint64 seconds = (tenths / 10) % 60;
+    return QString("%1:%2.%3")
+        .arg(minutes)
+        .arg(seconds, 2, 10, QChar('0'))
+        .arg(tenths % 10);
 }
 
 MazeWidget::Geometry MazeWidget::geometry() const
@@ -59,6 +86,19 @@ void MazeWidget::moveTo(int row, int col)
     }
 
     m_player.setPosition(row, col);
+
+    if (!m_clockStarted) {
+        m_clockStarted = true;
+        m_clock.start();
+        m_clockTick.start();
+    }
+    ++m_moves;
+    if (hasWon()) {
+        m_finishMs = m_clock.elapsed();
+        m_clockTick.stop();
+    }
+
+    emit statsChanged(m_moves, elapsedMs());
     update();
 }
 
@@ -73,6 +113,7 @@ void MazeWidget::solve()
     m_solutionStep = 0;
 
     if (!m_solution.empty()) {
+        m_usedSolve = true;
         m_solveTimer.start();
     }
 }
@@ -250,6 +291,12 @@ void MazeWidget::paintEvent(QPaintEvent*)
         font.setBold(true);
         painter.setFont(font);
         painter.setPen(QColor(30, 130, 30));
-        painter.drawText(rect(), Qt::AlignCenter, "You escaped!");
+        QString message = QString("You escaped!\n%1 moves in %2")
+                              .arg(m_moves)
+                              .arg(formatTime(m_finishMs));
+        if (m_usedSolve) {
+            message += "\n(with Solve)";
+        }
+        painter.drawText(rect(), Qt::AlignCenter, message);
     }
 }

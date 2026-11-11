@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QElapsedTimer>
+#include <QString>
 #include <QTimer>
 #include <QWidget>
 #include <vector>
@@ -12,6 +14,8 @@
 // the arrow keys / WASD. The route walked so far is drawn as a line; moving
 // back onto the previous cell removes the last step of the route.
 class MazeWidget : public QWidget {
+    Q_OBJECT
+
 public:
     // Generates a random size x size maze once; it can't be changed afterwards.
     explicit MazeWidget(int size, QWidget* parent = nullptr);
@@ -19,6 +23,16 @@ public:
     // Finds the shortest path from the player to the exit and walks the
     // player along it.
     void solve();
+
+    int moves() const;
+    qint64 elapsedMs() const;
+
+    // Formats milliseconds as m:ss.t, e.g. 1:05.3
+    static QString formatTime(qint64 ms);
+
+signals:
+    // Emitted after every move and about 10 times a second while the clock runs.
+    void statsChanged(int moves, qint64 elapsedMs);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -60,6 +74,14 @@ private:
 
     bool m_dragging = false;
     QPointF m_lastMousePos;
+
+    // Timer and move counter. The clock starts on the first move and stops at the exit.
+    int m_moves = 0;
+    bool m_clockStarted = false;
+    QElapsedTimer m_clock;
+    qint64 m_finishMs = 0;
+    QTimer m_clockTick; // refreshes the displayed time
+    bool m_usedSolve = false;
 
     QTimer m_solveTimer;
     std::vector<Position> m_solution; // shortest path found by the solver

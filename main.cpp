@@ -1,4 +1,6 @@
 #include <QApplication>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QPushButton>
 #include <QString>
 #include <QVBoxLayout>
@@ -31,13 +33,26 @@ int main(int argc, char *argv[])
     solveButton->setFocusPolicy(Qt::NoFocus); // keep arrow keys going to the maze
     auto* mazeWidget = new MazeWidget(size);
 
+    auto* statsLabel = new QLabel;
+    auto showStats = [statsLabel](int moves, qint64 ms) {
+        statsLabel->setText(QString("Time: %1     Moves: %2").arg(MazeWidget::formatTime(ms)).arg(moves));
+    };
+    showStats(0, 0);
+
+    auto* topRow = new QHBoxLayout;
+    topRow->addWidget(solveButton);
+    topRow->addSpacing(16);
+    topRow->addWidget(statsLabel);
+    topRow->addStretch();
+
     auto* layout = new QVBoxLayout(&window);
-    layout->addWidget(solveButton, 0, Qt::AlignLeft);
+    layout->addLayout(topRow);
     layout->addWidget(mazeWidget, 1);
 
     QObject::connect(solveButton, &QPushButton::clicked, mazeWidget, [mazeWidget] {
         mazeWidget->solve();
     });
+    QObject::connect(mazeWidget, &MazeWidget::statsChanged, statsLabel, showStats);
 
     window.resize(600, 650);
     window.show();
