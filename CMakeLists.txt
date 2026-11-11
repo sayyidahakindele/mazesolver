@@ -11,6 +11,8 @@ qt_standard_project_setup()
 
 qt_add_executable(MazeSolver
     main.cpp
+    MainWindow.h
+    MainWindow.cpp
     MazeGenerator.h
     MazeGenerator.cpp
     MazeSolver.h

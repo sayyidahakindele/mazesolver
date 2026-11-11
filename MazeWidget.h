@@ -24,8 +24,25 @@ public:
     // player along it.
     void solve();
 
+    // Puts the player back at the start of the same maze and resets the
+    // route, moves and score. The session timer keeps going. Also stops a
+    // Solve in progress.
+    void restart();
+
     int moves() const;
     qint64 elapsedMs() const;
+
+    // True once the player has moved and hasn't reached the exit yet.
+    bool inProgress() const;
+
+    // Maze dimension N (the maze is N x N cells).
+    int mazeSize() const;
+
+    // True if Solve was used in the current run (no score).
+    bool usedSolve() const;
+
+    // Switches the maze colours between light and dark.
+    void setDarkMode(bool dark);
 
     // Fewest moves needed to get from the entrance to the exit.
     int optimalMoves() const;
@@ -33,7 +50,9 @@ public:
     // Score out of 100: shortest possible moves divided by moves taken.
     int scorePercent() const;
 
-    // 3 stars for a perfect run, 2 for 75% or more, otherwise 1.
+    // Stars out of kMaxStars: 5 for a perfect run (100%), 4 for 90%+,
+    // 3 for 75%+, 2 for 50%+, otherwise 1.
+    static constexpr int kMaxStars = 5;
     int stars() const;
 
     // Formats milliseconds as m:ss.t, e.g. 1:05.3
@@ -42,6 +61,9 @@ public:
 signals:
     // Emitted after every move and about 10 times a second while the clock runs.
     void statsChanged(int moves, qint64 elapsedMs);
+
+    // Emitted once when the player reaches the exit.
+    void won();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -84,14 +106,17 @@ private:
     bool m_dragging = false;
     QPointF m_lastMousePos;
 
-    // Timer and move counter. The clock starts on the first move and stops at the exit.
+    // Move counter (reset by Restart) and session timer (never reset). The clock
+    // runs while playing, pauses at the exit, and resumes on the next move.
     int m_moves = 0;
     int m_optimalMoves = 0;
-    bool m_clockStarted = false;
-    QElapsedTimer m_clock;
-    qint64 m_finishMs = 0;
+    bool m_clockRunning = false;
+    QElapsedTimer m_clock;   // time since the clock last (re)started
+    qint64 m_pausedMs = 0;   // time banked before the last pause
     QTimer m_clockTick; // refreshes the displayed time
     bool m_usedSolve = false;
+
+    bool m_darkMode = false;
 
     QTimer m_solveTimer;
     std::vector<Position> m_solution; // shortest path found by the solver

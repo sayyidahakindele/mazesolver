@@ -39,10 +39,28 @@ int MazeWidget::moves() const
 
 qint64 MazeWidget::elapsedMs() const
 {
-    if (hasWon()) {
-        return m_finishMs;
-    }
-    return m_clockStarted ? m_clock.elapsed() : 0;
+    return m_clockRunning ? m_pausedMs + m_clock.elapsed() : m_pausedMs;
+}
+
+bool MazeWidget::inProgress() const
+{
+    return elapsedMs() > 0 && !hasWon();
+}
+
+int MazeWidget::mazeSize() const
+{
+    return m_maze.size();
+}
+
+bool MazeWidget::usedSolve() const
+{
+    return m_usedSolve;
+}
+
+void MazeWidget::setDarkMode(bool dark)
+{
+    m_darkMode = dark;
+    update();
 }
 
 int MazeWidget::optimalMoves() const
@@ -61,8 +79,10 @@ int MazeWidget::scorePercent() const
 int MazeWidget::stars() const
 {
     const int score = scorePercent();
-    if (score >= 100) return 3;
-    if (score >= 75)  return 2;
+    if (score >= 100) return 5;
+    if (score >= 90)  return 4;
+    if (score >= 75)  return 3;
+    if (score >= 50)  return 2;
     return 1;
 }
 
@@ -111,15 +131,17 @@ void MazeWidget::moveTo(int row, int col)
 
     m_player.setPosition(row, col);
 
-    if (!m_clockStarted) {
-        m_clockStarted = true;
+    if (!m_clockRunning) {
+        m_clockRunning = true;
         m_clock.start();
         m_clockTick.start();
     }
     ++m_moves;
     if (hasWon()) {
-        m_finishMs = m_clock.elapsed();
+        m_pausedMs += m_clock.elapsed(); // pause the clock at the exit
+        m_clockRunning = false;
         m_clockTick.stop();
+        emit won();
     }
 
     emit statsChanged(m_moves, elapsedMs());
@@ -140,6 +162,29 @@ void MazeWidget::solve()
         m_usedSolve = true;
         m_solveTimer.start();
     }
+}
+
+void MazeWidget::restart()
+{
+    m_solveTimer.stop();
+    m_solution.clear();
+    m_solutionStep = 0;
+
+    m_player.setPosition(0, 0);
+    m_route = {{0, 0}};
+
+    if (m_dragging) {
+        m_dragging = false;
+        unsetCursor();
+    }
+
+    m_moves = 0;
+    m_usedSolve = false;
+    // The session timer is deliberately not reset.
+
+    setFocus();
+    emit statsChanged(m_moves, elapsedMs());
+    update();
 }
 
 void MazeWidget::stepAlongSolution()
@@ -260,9 +305,18 @@ void MazeWidget::keyPressEvent(QKeyEvent* event)
 
 void MazeWidget::paintEvent(QPaintEvent*)
 {
+    // Colours for the current theme.
+    const QColor background = m_darkMode ? QColor(30, 31, 34)        : QColor(Qt::white);
+    const QColor wallColor  = m_darkMode ? QColor(215, 215, 220)     : QColor(Qt::black);
+    const QColor exitColor  = m_darkMode ? QColor(40, 90, 55)        : QColor(200, 240, 200);
+    const QColor routeColor = m_darkMode ? QColor(90, 150, 255, 180) : QColor(50, 110, 230, 170);
+    const QColor playerColor= m_darkMode ? QColor(240, 85, 85)       : QColor(220, 50, 50);
+    const QColor panelColor = m_darkMode ? QColor(30, 31, 34, 230)   : QColor(255, 255, 255, 220);
+    const QColor winText    = m_darkMode ? QColor(120, 210, 130)     : QColor(30, 130, 30);
+
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.fillRect(rect(), Qt::white);
+    painter.fillRect(rect(), background);
 
     const int n = m_maze.size();
     const Geometry g = geometry();
@@ -273,7 +327,7 @@ void MazeWidget::paintEvent(QPaintEvent*)
 
     // Exit cell highlight.
     painter.fillRect(QRectF(g.left + (n - 1) * g.cellSize, g.top + (n - 1) * g.cellSize, g.cellSize, g.cellSize),
-                     QColor(200, 240, 200));
+                     exitColor);
 
     // Route walked so far.
     if (m_route.size() >= 2) {
@@ -281,13 +335,13 @@ void MazeWidget::paintEvent(QPaintEvent*)
         for (const Position& p : m_route) {
             line << centreOf(p.first, p.second);
         }
-        painter.setPen(QPen(QColor(50, 110, 230, 170), g.cellSize * 0.25, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.setPen(QPen(routeColor, g.cellSize * 0.25, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter.setBrush(Qt::NoBrush);
         painter.drawPolyline(line);
     }
 
     // Walls.
-    painter.setPen(QPen(Qt::black, 2, Qt::SolidLine, Qt::SquareCap));
+    painter.setPen(QPen(wallColor, 2, Qt::SolidLine, Qt::SquareCap));
     for (int row = 0; row < n; ++row) {
         for (int col = 0; col < n; ++col) {
             const Cell& c = m_maze.cell(row, col);
@@ -305,14 +359,14 @@ void MazeWidget::paintEvent(QPaintEvent*)
     // Player.
     const double radius = g.cellSize * 0.3;
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(220, 50, 50));
+    painter.setBrush(playerColor);
     painter.drawEllipse(centreOf(m_player.row(), m_player.col()), radius, radius);
 
     // Win message.
     if (hasWon()) {
-        QString message = QString("You escaped!\n%1 moves in %2\nShortest possible: %3\n")
+        QString message = QString("You escaped!\n%1 moves  (session time %2)\nShortest possible: %3\n")
                               .arg(m_moves)
-                              .arg(formatTime(m_finishMs))
+                              .arg(formatTime(elapsedMs()))
                               .arg(m_optimalMoves);
         if (m_usedSolve) {
             message += "No score (used Solve)";
@@ -321,7 +375,7 @@ void MazeWidget::paintEvent(QPaintEvent*)
             message += QString("Score: %1%  %2%3")
                            .arg(scorePercent())
                            .arg(QString(s, QChar(0x2605)))      // filled stars
-                           .arg(QString(3 - s, QChar(0x2606))); // empty stars
+                           .arg(QString(kMaxStars - s, QChar(0x2606))); // empty stars
         }
 
         QFont font = painter.font();
@@ -329,13 +383,13 @@ void MazeWidget::paintEvent(QPaintEvent*)
         font.setBold(true);
         painter.setFont(font);
 
-        // Light panel behind the text so it stays readable over the maze.
+        // Panel behind the text so it stays readable over the maze.
         const QRectF textRect = painter.boundingRect(rect(), Qt::AlignCenter, message);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(255, 255, 255, 220));
+        painter.setBrush(panelColor);
         painter.drawRoundedRect(textRect.adjusted(-20, -14, 20, 14), 12, 12);
 
-        painter.setPen(QColor(30, 130, 30));
+        painter.setPen(winText);
         painter.drawText(rect(), Qt::AlignCenter, message);
     }
 }
